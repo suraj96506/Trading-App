@@ -11,12 +11,17 @@ class PriceFeedService {
   static final PriceFeedService _instance = PriceFeedService._internal();
   factory PriceFeedService() => _instance;
 
-  final _controller = StreamController<PriceTick>.broadcast();
+  StreamController<PriceTick> _controller = StreamController<PriceTick>.broadcast();
   Timer? _timer;
+
+  int _intervalMs = 500;
+  int get intervalMs => _intervalMs;
 
   // Start the periodic feed.
   void start({int intervalMs = 500}) {
-    _timer ??= Timer.periodic(Duration(milliseconds: intervalMs), (_) {
+    _timer?.cancel();
+    _intervalMs = intervalMs;
+    _timer = Timer.periodic(Duration(milliseconds: intervalMs), (_) {
       for (final symbol in kStartingPrices.keys) {
         final last = _lastPrices[symbol] ?? kStartingPrices[symbol]!;
         // Simple random walk +/-0.5%
@@ -43,6 +48,12 @@ class PriceFeedService {
     });
   }
 
+  void setInterval(int newIntervalMs) {
+    if (newIntervalMs > 0 && newIntervalMs != _intervalMs) {
+      start(intervalMs: newIntervalMs);
+    }
+  }
+
   // Expose the broadcast stream.
   Stream<PriceTick> get stream => _controller.stream;
 
@@ -51,7 +62,9 @@ class PriceFeedService {
 
   void dispose() {
     _timer?.cancel();
+    _timer = null;
     _controller.close();
+    _controller = StreamController<PriceTick>.broadcast();
   }
 }
 

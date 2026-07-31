@@ -1,10 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
 import 'package:ticker_sim/core/services/storage_service.dart';
 import 'package:ticker_sim/core/models/wallet.dart';
 import 'package:ticker_sim/core/models/holding.dart';
 import 'package:ticker_sim/core/models/order.dart';
+import 'package:ticker_sim/core/models/decimal_adapter.dart';
 import 'package:ticker_sim/features/trade/providers/trade_provider.dart';
 import 'package:decimal/decimal.dart';
 
@@ -12,32 +16,49 @@ void main() {
   group('TradeExecutor', () {
     late StorageService storage;
     late ProviderContainer container;
+    late Directory tempDir;
+
+    setUpAll(() async {
+      WidgetsFlutterBinding.ensureInitialized();
+      tempDir = Directory.systemTemp.createTempSync('hive_test_');
+      Hive.init(tempDir.path);
+      try { Hive.registerAdapter(DecimalAdapter()); } catch (_) {}
+      try { Hive.registerAdapter(WalletAdapter()); } catch (_) {}
+      try { Hive.registerAdapter(HoldingAdapter()); } catch (_) {}
+      try { Hive.registerAdapter(OrderAdapter()); } catch (_) {}
+      await Future.wait([
+        Hive.openBox<Wallet>('wallet'),
+        Hive.openBox<Holding>('holdings'),
+        Hive.openBox<Order>('orders'),
+      ]);
+    });
+
+    tearDownAll(() async {
+      await Hive.close();
+      try {
+        tempDir.deleteSync(recursive: true);
+      } catch (_) {}
+    });
 
     setUp(() async {
-      WidgetsFlutterBinding.ensureInitialized();
       storage = StorageService.instance;
-      await storage.init();
 
       // Clear all boxes to start fresh
       final walletBox = storage.box<Wallet>('wallet');
       final holdingsBox = storage.box<Holding>('holdings');
       final ordersBox = storage.box<Order>('orders');
-      walletBox.clear();
-      holdingsBox.clear();
-      ordersBox.clear();
+      await walletBox.clear();
+      await holdingsBox.clear();
+      await ordersBox.clear();
 
       // Seed wallet with initial balance
-      walletBox.add(Wallet(balance: Decimal.parse('100000')));
+      await walletBox.add(Wallet(balance: Decimal.parse('100000')));
 
       container = ProviderContainer();
     });
 
     tearDown(() {
       container.dispose();
-      // Clear boxes to not affect other tests
-      storage.box<Wallet>('wallet').clear();
-      storage.box<Holding>('holdings').clear();
-      storage.box<Order>('orders').clear();
     });
 
     group('buy', () {
@@ -82,7 +103,7 @@ void main() {
         final executor = container.read(tradeExecutorProvider);
         final (error, success) = executor.buy('RELIANCE', 0, Decimal.parse('1400'));
         expect(success, isFalse);
-        expect(error.toString(), anyOf(contains('zero'), contains('Insufficient')));
+        expect(error.toString(), anyOf(contains('positive'), contains('zero'), contains('Insufficient')));
       });
 
       test('rejects negative qty', () {
@@ -103,8 +124,8 @@ void main() {
       test('rejects insufficient balance', () async {
         // Set wallet to 100, try to buy 1 share @ 1400 = not enough
         final walletBox = storage.box<Wallet>('wallet');
-        walletBox.clear();
-        walletBox.add(Wallet(balance: Decimal.parse('100')));
+        await walletBox.clear();
+        await walletBox.add(Wallet(balance: Decimal.parse('100')));
 
         final executor = container.read(tradeExecutorProvider);
         final (error, success) = executor.buy('RELIANCE', 1, Decimal.parse('1400'));

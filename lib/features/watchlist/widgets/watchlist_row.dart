@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:decimal/decimal.dart';
 import 'package:ticker_sim/core/providers/price_provider.dart';
 import 'package:ticker_sim/core/models/price_tick.dart';
+import '../../../core/constants/market_constants.dart';
 
 class WatchlistRow extends ConsumerStatefulWidget {
   final String symbol;
@@ -25,9 +26,9 @@ class _WatchlistRowState extends ConsumerState<WatchlistRow> {
     if (_previousLtp != null) {
       final comparison = tick.ltp.compareTo(_previousLtp!);
       if (comparison > 0) {
-        _flashColor = Colors.green.withValues(alpha: 0.35);
+        _flashColor = const Color(0xFF006B5C).withValues(alpha: 0.15);
       } else if (comparison < 0) {
-        _flashColor = Colors.red.withValues(alpha: 0.35);
+        _flashColor = const Color(0xFFBA1A1A).withValues(alpha: 0.15);
       } else {
         _flashColor = Colors.transparent;
       }
@@ -48,6 +49,7 @@ class _WatchlistRowState extends ConsumerState<WatchlistRow> {
   @override
   Widget build(BuildContext context) {
     final tickAsync = ref.watch(priceProvider(widget.symbol));
+    final companyName = kStockCompanyNames[widget.symbol] ?? widget.symbol;
 
     ref.listen(priceProvider(widget.symbol), (_, state) {
       final tick = state.valueOrNull;
@@ -59,78 +61,137 @@ class _WatchlistRowState extends ConsumerState<WatchlistRow> {
       child: tickAsync.when(
         data: (tick) {
           final price = tick.ltp;
-          final change = tick.change;
           final changePercent = tick.changePercent;
+          final isPositive = changePercent >= Decimal.zero;
 
-          Color changeColor = Colors.grey;
-          if (change > Decimal.zero) {
-            changeColor = Colors.green;
-          } else if (change < Decimal.zero) {
-            changeColor = Colors.red;
-          }
+          final badgeBg = isPositive
+              ? const Color(0xFF006B5C).withValues(alpha: 0.12)
+              : const Color(0xFFBA1A1A).withValues(alpha: 0.12);
+          final badgeTextColor = isPositive ? const Color(0xFF006B5C) : const Color(0xFFBA1A1A);
 
           return AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            color: _flashColor,
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Colors.blue.shade100,
-                child: Text(widget.symbol[0],
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            decoration: BoxDecoration(
+              color: _flashColor != Colors.transparent
+                  ? _flashColor
+                  : Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1,
               ),
-              title: Text(widget.symbol,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Row(
-                children: [
-                  Text('₹${price.toStringAsFixed(2)}'),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${change.toStringAsFixed(2)} (${changePercent.toStringAsFixed(2)}%)',
-                    style: TextStyle(color: changeColor),
-                  ),
-                ],
-              ),
-              trailing: widget.onRemove != null
-                  ? IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      onPressed: widget.onRemove,
-                    )
-                  : null,
+            ),
+            child: InkWell(
               onTap: widget.onTap,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    // Symbol & Subtitle
+                    Expanded(
+                      flex: 4,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.symbol,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            companyName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // LTP Price
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        '₹${price.toStringAsFixed(2)}',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Change % Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: badgeBg,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${isPositive ? '+' : ''}${changePercent.toStringAsFixed(2)}%',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: badgeTextColor,
+                        ),
+                      ),
+                    ),
+                    if (widget.onRemove != null) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: Icon(
+                          Icons.close,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        onPressed: widget.onRemove,
+                        splashRadius: 18,
+                      ),
+                    ],
+                    // Drag Handle Icon
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Icon(
+                        Icons.drag_handle,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
         },
-        loading: () => ListTile(
-          leading: CircleAvatar(
-            backgroundColor: Colors.blue.shade100,
-            child: Text(widget.symbol[0],
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+        loading: () => Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Text(widget.symbol, style: const TextStyle(fontWeight: FontWeight.bold)),
+              const Spacer(),
+              const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+            ],
           ),
-          title: Text(widget.symbol,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: const Text('Loading...'),
-          trailing: widget.onRemove != null
-              ? IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: widget.onRemove,
-                )
-              : null,
         ),
-        error: (error, _) => ListTile(
-          leading: CircleAvatar(
-            backgroundColor: Colors.blue.shade100,
-            child: Text(widget.symbol[0],
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-          title: Text(widget.symbol,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text('Error: $error'),
-          trailing: widget.onRemove != null
-              ? IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: widget.onRemove,
-                )
-              : null,
+        error: (error, _) => Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.all(16),
+          child: Text('${widget.symbol}: Error loading price'),
         ),
       ),
     );

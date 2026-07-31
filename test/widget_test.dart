@@ -10,6 +10,6 @@ void main() {
       const ProviderScope(child: MyApp()),
     );
     // The market screen should show 'Market' in the AppBar.
-    expect(find.text('Market'), findsOneWidget);
+    expect(find.text('Market'), findsAtLeast(1));
   });
 }

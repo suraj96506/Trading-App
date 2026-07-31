@@ -104,5 +104,12 @@ void main() {
 
       await completer.future;
     });
+
+    test('setInterval updates intervalMs dynamically', () {
+      service.start(intervalMs: 500);
+      expect(service.intervalMs, equals(500));
+      service.setInterval(200);
+      expect(service.intervalMs, equals(200));
+    });
   });
 }

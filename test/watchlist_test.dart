@@ -76,5 +76,14 @@ void main() {
       );
       expect(watchlist.symbols, equals(symbols));
     });
+
+    test('multiple watchlists can share identical stock symbols', () {
+      final w1 = Watchlist(id: 'w1', name: 'Tech & Core', symbols: ['RELIANCE', 'TCS']);
+      final w2 = Watchlist(id: 'w2', name: 'Favorites', symbols: ['RELIANCE', 'INFY']);
+
+      final sharedSymbols = w1.symbols.toSet().intersection(w2.symbols.toSet());
+      expect(sharedSymbols, contains('RELIANCE'));
+      expect(sharedSymbols.length, equals(1));
+    });
   });
 }

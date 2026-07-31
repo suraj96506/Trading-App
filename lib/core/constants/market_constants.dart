@@ -16,3 +16,16 @@ final Map<String, Decimal> kStartingPrices = {
 
 /// Initial wallet balance (₹) as a string to be parsed into Decimal at runtime.
 const String kInitialWalletBalance = '100000'; // ₹1,00,000
+
+const Map<String, String> kStockCompanyNames = {
+  'RELIANCE':    'Reliance Industries Ltd.',
+  'TCS':         'Tata Consultancy Services',
+  'INFY':        'Infosys Ltd.',
+  'HDFCBANK':    'HDFC Bank Ltd.',
+  'ICICIBANK':   'ICICI Bank Ltd.',
+  'SBIN':        'State Bank of India',
+  'ITC':         'ITC Limited',
+  'LT':          'Larsen & Toubro Ltd.',
+  'BHARTIARTL':  'Bharti Airtel Ltd.',
+  'AXISBANK':    'Axis Bank Ltd.',
+};
