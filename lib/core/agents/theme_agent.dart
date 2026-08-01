@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Theme provider – true for dark mode, false for light mode.
+/// Provider to manage dark mode state across the app.
+/// Returns true if dark theme is enabled.
 final themeProvider = StateProvider<bool>((ref) => false);

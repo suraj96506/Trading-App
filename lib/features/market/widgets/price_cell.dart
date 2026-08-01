@@ -1,12 +1,13 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:decimal/decimal.dart';
 import '../../../core/providers/price_provider.dart';
 import '../../../core/models/price_tick.dart';
-import 'package:decimal/decimal.dart';
-import '../../../shared/theme/app_theme.dart';
-
+import 'price_cell_state.dart';
 import '../../../core/constants/market_constants.dart';
+import '../../../shared/theme/app_theme.dart';
 
 class PriceCell extends ConsumerStatefulWidget {
   final String symbol;
@@ -20,11 +21,6 @@ class PriceCell extends ConsumerStatefulWidget {
 
 class _PriceCellState extends ConsumerState<PriceCell>
     with SingleTickerProviderStateMixin {
-  Decimal? _previousLtp;
-  bool _flashPositive = false;
-  bool _flashNegative = false;
-  Timer? _flashTimer;
-  final List<double> _history = [];
   late AnimationController _pulseCtrl;
 
   @override
@@ -34,130 +30,121 @@ class _PriceCellState extends ConsumerState<PriceCell>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-  }
-
-  void _onTick(PriceTick tick) {
-    final ltpDouble = double.tryParse(tick.ltp.toString()) ?? 0.0;
-    if (_history.isEmpty || (_history.last - ltpDouble).abs() > 0.001) {
-      setState(() => _history.add(ltpDouble));
-      if (_history.length > 20) _history.removeAt(0);
-    }
-
-    if (_previousLtp != null) {
-      final cmp = tick.ltp.compareTo(_previousLtp!);
-      if (cmp != 0) {
-        setState(() {
-          _flashPositive = cmp > 0;
-          _flashNegative = cmp < 0;
-        });
-        _pulseCtrl.forward(from: 0);
-        _flashTimer?.cancel();
-        _flashTimer = Timer(const Duration(milliseconds: 700), () {
-          if (mounted) setState(() { _flashPositive = false; _flashNegative = false; });
-        });
+    // Listen to flash changes to trigger animation
+    // Listening to price ticks and delegating to notifier
+    ref.listen<AsyncValue<PriceTick>>(priceProvider(widget.symbol), (_, state) {
+      final tick = state.valueOrNull;
+      if (tick != null) {
+        ref.read(priceCellProvider(widget.symbol).notifier).onTick(tick);
       }
-    }
-    _previousLtp = tick.ltp;
+    });
+
+    // Listen for flash changes to trigger animation
+    ref.listen<PriceCellState>(priceCellProvider(widget.symbol), (prev, next) {
+      if (next.flashPositive || next.flashNegative) {
+        _pulseCtrl.forward(from: 0);
+      }
+    });
   }
 
   @override
   void dispose() {
-    _flashTimer?.cancel();
     _pulseCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final tickAsync = ref.watch(priceProvider(widget.symbol));
     final cs = Theme.of(context).colorScheme;
-
-    ref.listen(priceProvider(widget.symbol), (_, state) {
-      final tick = state.valueOrNull;
-      if (tick != null) _onTick(tick);
-    });
-
-    return tickAsync.when(
-      data: (tick) => _buildCard(context, cs, tick),
-      loading: () => _buildSkeleton(context, cs),
-      error: (e, _) => _buildError(context, cs),
-    );
+    final cellState = ref.watch(priceCellProvider(widget.symbol));
+    final tickAsync = ref.watch(priceProvider(widget.symbol));
+    final tick = tickAsync.valueOrNull;
+    if (tick == null) {
+      return tickAsync.when(
+        data: (_) => _buildSkeleton(context, cs),
+        loading: () => _buildSkeleton(context, cs),
+        error: (e, _) => _buildError(context, cs),
+      );
+    }
+    return _buildCard(context, cs, tick, cellState);
   }
 
-  Widget _buildCard(BuildContext context, ColorScheme cs, PriceTick tick) {
+  Widget _buildCard(BuildContext context, ColorScheme cs, PriceTick tick, PriceCellState cellState) {
     final price = tick.ltp;
     final change = tick.change;
     final changePct = tick.changePercent;
     final isPos = change >= Decimal.zero;
 
-    final gainC  = AppTheme.gainColor(context);
-    final lossC  = AppTheme.lossColor(context);
+    final gainC = AppTheme.gainColor(context);
+    final lossC = AppTheme.lossColor(context);
     final gainBg = AppTheme.gainBg(context);
     final lossBg = AppTheme.lossBg(context);
 
+    // Use provider state for flash backgrounds
     Color? flashBg;
-    if (_flashPositive) flashBg = gainBg;
-    if (_flashNegative) flashBg = lossBg;
+    if (cellState.flashPositive) flashBg = gainBg;
+    if (cellState.flashNegative) flashBg = lossBg;
 
     final companyName = kStockCompanyNames[widget.symbol] ?? widget.symbol;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 220),
       curve: Curves.easeOut,
       decoration: BoxDecoration(
         color: flashBg ?? cs.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: flashBg != null
-              ? (isPos ? gainC : lossC).withValues(alpha: 0.4)
+              ? (isPos ? gainC : lossC).withValues(alpha: 0.3)
               : cs.outlineVariant,
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: context.isDark ? 0.3 : 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: AppTheme.panelShadow(context),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         child: InkWell(
           onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(20),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            padding: const EdgeInsets.fromLTRB(15, 14, 15, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Symbol Avatar
                     Container(
-                      width: 38,
-                      height: 38,
+                      width: 42,
+                      height: 42,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: const LinearGradient(
                           colors: [AppTheme.primaryBlueMid, AppTheme.primaryBlueTint],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(9),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primaryBlueMid.withValues(alpha: 0.26),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        widget.symbol.substring(0, 1),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                      child: Center(
+                        child: Text(
+                          widget.symbol.substring(0, 1),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,18 +152,19 @@ class _PriceCellState extends ConsumerState<PriceCell>
                           Text(
                             widget.symbol,
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Manrope',
                               fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                               color: cs.onSurface,
                             ),
                           ),
+                          const SizedBox(height: 3),
                           Text(
                             companyName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Manrope',
                               fontSize: 11.5,
                               color: cs.onSurfaceVariant,
                             ),
@@ -187,17 +175,31 @@ class _PriceCellState extends ConsumerState<PriceCell>
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(
-                          '₹${price.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface,
-                            fontFeatures: const [FontFeature.tabularFigures()],
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          transitionBuilder: (child, anim) => FadeTransition(
+                            opacity: anim,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.15),
+                                end: Offset.zero,
+                              ).animate(anim),
+                              child: child,
+                            ),
+                          ),
+                          child: Text(
+                            '₹${price.toStringAsFixed(2)}',
+                            key: ValueKey(price.toString()),
+                            style: TextStyle(
+                              fontFamily: 'Manrope',
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: cs.onSurface,
+                              fontFeatures: const [FontFeature.tabularFigures()],
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 4),
                         _PillBadge(
                           isPositive: isPos,
                           text: '${isPos ? '+' : ''}${changePct.toStringAsFixed(2)}%',
@@ -206,45 +208,66 @@ class _PriceCellState extends ConsumerState<PriceCell>
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                // Sparkline
-                SizedBox(
-                  height: 38,
-                  child: _history.length >= 2
-                      ? CustomPaint(
-                          painter: _SparkPainter(
-                            data: List.from(_history),
-                            color: isPos ? gainC : lossC,
-                            isDark: context.isDark,
-                          ),
-                          size: Size.infinite,
-                        )
-                      : Center(
-                          child: Container(
-                            height: 1,
-                            color: cs.outlineVariant,
-                          ),
-                        ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      isPos ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                      size: 12,
-                      color: isPos ? gainC : lossC,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      '${isPos ? '+' : ''}${change.toStringAsFixed(2)} today',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: isPos ? gainC : lossC,
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest.withValues(alpha: context.isDark ? 0.45 : 0.6),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.6)),
+                  ),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: 42,
+                        child: cellState.history.length >= 2
+                            ? CustomPaint(
+                                painter: _SparkPainter(
+                                  data: List.from(cellState.history),
+                                  color: isPos ? gainC : lossC,
+                                  isDark: context.isDark,
+                                ),
+                                size: Size.infinite,
+                              )
+                            : Center(
+                                child: Container(
+                                  height: 1,
+                                  color: cs.outlineVariant,
+                                ),
+                              ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            isPos ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                            size: 12,
+                            color: isPos ? gainC : lossC,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${isPos ? '+' : ''}${change.toStringAsFixed(2)} today',
+                            style: TextStyle(
+                              fontFamily: 'Manrope',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isPos ? gainC : lossC,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            'Tap for trade',
+                            style: TextStyle(
+                              fontFamily: 'Manrope',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -256,54 +279,63 @@ class _PriceCellState extends ConsumerState<PriceCell>
 
   Widget _buildSkeleton(BuildContext context, ColorScheme cs) {
     return Container(
-      height: 120,
+      height: 140,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: cs.outlineVariant),
       ),
-      child: Row(children: [
-        Container(
-          width: 38, height: 38,
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(9),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(height: 13, width: 80, color: cs.surfaceContainerHighest, margin: const EdgeInsets.only(bottom: 6)),
-            Container(height: 10, width: 130, color: cs.outlineVariant),
-          ],
-        )),
-        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-      ]),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(height: 13, width: 80, color: cs.surfaceContainerHighest, margin: const EdgeInsets.only(bottom: 6)),
+                Container(height: 10, width: 130, color: cs.outlineVariant),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+        ],
+      ),
     );
   }
 
   Widget _buildError(BuildContext context, ColorScheme cs) {
     return Container(
-      height: 60,
+      height: 70,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: cs.outlineVariant),
       ),
-      child: Row(children: [
-        Icon(Icons.error_outline, size: 18, color: cs.error),
-        const SizedBox(width: 8),
-        Text('${widget.symbol}: unavailable', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
-      ]),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, size: 18, color: cs.error),
+          const SizedBox(width: 8),
+          Text(
+            '${widget.symbol}: unavailable',
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// Small colored pill badge
 class _PillBadge extends StatelessWidget {
   final bool isPositive;
   final String text;
@@ -312,22 +344,22 @@ class _PillBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gainC  = AppTheme.gainColor(context);
-    final lossC  = AppTheme.lossColor(context);
+    final gainC = AppTheme.gainColor(context);
+    final lossC = AppTheme.lossColor(context);
     final gainBg = AppTheme.gainBg(context);
     final lossBg = AppTheme.lossBg(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: isPositive ? gainBg : lossBg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         text,
         style: TextStyle(
-          fontFamily: 'Inter',
+          fontFamily: 'Manrope',
           fontSize: 11,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
           color: isPositive ? gainC : lossC,
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
@@ -336,7 +368,6 @@ class _PillBadge extends StatelessWidget {
   }
 }
 
-/// Smooth sparkline painter with gradient fill
 class _SparkPainter extends CustomPainter {
   final List<double> data;
   final Color color;
@@ -351,7 +382,7 @@ class _SparkPainter extends CustomPainter {
     final minV = data.reduce((a, b) => a < b ? a : b);
     final maxV = data.reduce((a, b) => a > b ? a : b);
     final range = (maxV - minV) == 0 ? 1.0 : (maxV - minV);
-    final step  = size.width / (data.length - 1);
+    final step = size.width / (data.length - 1);
 
     final pts = <Offset>[];
     for (int i = 0; i < data.length; i++) {
@@ -360,7 +391,6 @@ class _SparkPainter extends CustomPainter {
       pts.add(Offset(x, y));
     }
 
-    // Smooth path using cubic bezier
     final path = Path()..moveTo(pts.first.dx, pts.first.dy);
     for (int i = 1; i < pts.length; i++) {
       final cp1 = Offset((pts[i - 1].dx + pts[i].dx) / 2, pts[i - 1].dy);
@@ -368,7 +398,6 @@ class _SparkPainter extends CustomPainter {
       path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, pts[i].dx, pts[i].dy);
     }
 
-    // Draw gradient fill
     final fillPath = Path.from(path)
       ..lineTo(pts.last.dx, size.height)
       ..lineTo(pts.first.dx, size.height)
@@ -387,7 +416,6 @@ class _SparkPainter extends CustomPainter {
         ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
     );
 
-    // Draw line
     canvas.drawPath(
       path,
       Paint()
