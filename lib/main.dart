@@ -20,8 +20,9 @@ import 'package:collection/collection.dart';
 final splashProvider = StateProvider<bool>((ref) => !const bool.fromEnvironment('FLUTTER_TEST'));
 final currentTabProvider = StateProvider<int>((ref) => 0);
 
-// Root widget
 class MyApp extends ConsumerWidget {
+  // Global navigator key to provide a context under MaterialApp for dialogs
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   const MyApp({super.key});
 
   @override
@@ -36,6 +37,7 @@ class MyApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+      navigatorKey: MyApp.navigatorKey,
       home: AnimatedSwitcher(
         duration: const Duration(milliseconds: 500),
         child: showSplash
@@ -51,8 +53,10 @@ class MyApp extends ConsumerWidget {
                     final watchlists = ref.read(watchlistsStreamProvider).valueOrNull;
                     if (watchlists != null) {
                       final current = watchlists.firstWhereOrNull((w) => w.id == watchlistState.currentWatchlistId);
-                      if (current != null && context.mounted) {
-                        final canProceed = await ref.read(watchlistScreenProvider.notifier).promptSaveIfDirty(current, context);
+                      if (current != null && MyApp.navigatorKey.currentContext != null) {
+                        final canProceed = await ref
+                            .read(watchlistScreenProvider.notifier)
+                            .promptSaveIfDirty(current, MyApp.navigatorKey.currentContext!);
                         if (!canProceed) return;
                       }
                     }

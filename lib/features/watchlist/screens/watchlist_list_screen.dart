@@ -156,7 +156,10 @@ class WatchlistListScreen extends ConsumerWidget {
                 }
 
                 final currentWatchlist = watchlists[watchlistState.selectedTabIndex];
-                notifier.syncWithWatchlist(currentWatchlist);
+                // Defer sync to avoid modifying provider during build
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  notifier.syncWithWatchlist(currentWatchlist);
+                });
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

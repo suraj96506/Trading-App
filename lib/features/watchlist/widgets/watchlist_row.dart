@@ -88,13 +88,16 @@ class WatchlistRow extends ConsumerWidget {
                           children: [
                             Row(
                               children: [
-                                Text(
-                                  symbol,
-                                  style: TextStyle(
-                                    fontFamily: 'Manrope',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    color: cs.onSurface,
+                                Flexible(
+                                  child: Text(
+                                    symbol,
+                                    style: TextStyle(
+                                      fontFamily: 'Manrope',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: cs.onSurface,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 const SizedBox(width: 8),

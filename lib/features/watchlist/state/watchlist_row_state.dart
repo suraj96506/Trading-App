@@ -16,8 +16,15 @@ class WatchlistRowState {
 
 class WatchlistRowNotifier extends StateNotifier<WatchlistRowState> {
   Decimal? _lastPrice;
+  bool _disposed = false;
 
   WatchlistRowNotifier() : super(WatchlistRowState.transparent());
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   void onTick(PriceTick tick) {
     if (_lastPrice != null && state.flashColor == Colors.transparent) {
@@ -44,8 +51,10 @@ class WatchlistRowNotifier extends StateNotifier<WatchlistRowState> {
 
   void _resetAfter(Duration d) async {
     await Future.delayed(d);
-    // Ensure widget is still mounted via provider autoDispose.
-    state = WatchlistRowState.transparent();
+    if (!_disposed) {
+      // Ensure widget is still mounted via provider autoDispose.
+      state = WatchlistRowState.transparent();
+    }
   }
 }
 
