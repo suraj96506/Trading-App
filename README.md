@@ -28,19 +28,19 @@ A lightweight, multi‑screen Flutter application that showcases real‑time mar
 ## App Flow & Screens
 
 ### Video Overview
-<video controls src="file:///c:/Users/suraj/Downloads/flutter_projects/trading_app/AppFlow.mp4" width="600"></video>
+[Watch demo video](./assets/AppFlow.mp4)
 
 ### Light Mode Screens
 
 | Market | Watchlist | Portfolio | Order History |
 |--------|-----------|----------|---------------|
-| ![Market Light](file:///c:/Users/suraj/Downloads/flutter_projects/trading_app/Market_light.png) | ![Watchlist Light](file:///c:/Users/suraj/Downloads/flutter_projects/trading_app/watchlist_light.png) | ![Portfolio Light](file:///c:/Users/suraj/Downloads/flutter_projects/trading_app/Portfolio_light.png) | ![Order History Light](file:///c:/Users/suraj/Downloads/flutter_projects/trading_app/orderhistory_light.png) |
+| ![Market Light](./assets/Market_light.png) | ![Watchlist Light](./assets/watchlist_light.png) | ![Portfolio Light](./assets/Portfolio_light.png) | ![Order History Light](./assets/orderhistory_light.png) |
 
 ### Dark Mode Screens
 
 | Market | Watchlist | Portfolio | Order History |
 |--------|-----------|----------|---------------|
-| ![Market Dark](file:///c:/Users/suraj/Downloads/flutter_projects/trading_app/Market_dark.png) | ![Watchlist Dark](file:///c:/Users/suraj/Downloads/flutter_projects/trading_app/watchlist_dark.png) | ![Portfolio Dark](file:///c:/Users/suraj/Downloads/flutter_projects/trading_app/portfolio_dark.png) | ![Order History Dark](file:///c:/Users/suraj/Downloads/flutter_projects/trading_app/orderhistory_dark.png) |
+| ![Market Dark](./assets/Market_dark.png) | ![Watchlist Dark](./assets/watchlist_dark.png) | ![Portfolio Dark](./assets/portfolio_dark.png) | ![Order History Dark](./assets/orderhistory_dark.png) |
 
 - **Watchlist** – Add, remove, reorder symbols; persistent across app restarts.
 - **Portfolio** – View holdings, P&L, and bulk‑sell operation.
